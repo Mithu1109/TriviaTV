@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 
 final class LeaderboardStorage: ObservableObject {
     static let shared = LeaderboardStorage()
@@ -20,7 +21,7 @@ final class LeaderboardStorage: ObservableObject {
 
     func loadEntries() {
         if let data = UserDefaults.standard.data(forKey: storageKey),
-           let decoded = try? JSONDecoder().decode([LeaderboardEntry].self, data) {
+           let decoded = try? JSONDecoder().decode([LeaderboardEntry].self, from: data) {
             self.entries = decoded.sorted(by: { $0.score > $1.score })
         } else {
             // Seed with classic family record scores for a rich initial 10-foot experience

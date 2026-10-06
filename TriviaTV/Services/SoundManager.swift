@@ -14,6 +14,7 @@ final class SoundManager {
 
     private let engine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
+    private let playbackFormat = AVAudioFormat(standardFormatWithSampleRate: 44100.0, channels: 2)!
     private var isMuted: Bool = false
     private var isConfigured: Bool = false
     private let audioQueue = DispatchQueue(label: "com.triviatv.soundmanager", qos: .userInteractive)
@@ -39,8 +40,8 @@ final class SoundManager {
             try session.setActive(true)
 
             engine.attach(playerNode)
-            let hardwareFormat = engine.mainMixerNode.outputFormat(forBus: 0)
-            engine.connect(playerNode, to: engine.mainMixerNode, format: hardwareFormat)
+            // Connect with the same format the buffers are generated in; the mixer converts to hardware.
+            engine.connect(playerNode, to: engine.mainMixerNode, format: playbackFormat)
             try engine.start()
             isConfigured = true
         } catch {
@@ -50,8 +51,7 @@ final class SoundManager {
     }
 
     private func precomputeAudioBuffers() {
-        let sampleRate: Double = 44100.0
-        guard let standardFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1) else { return }
+        let standardFormat = playbackFormat
 
         correctBuffer = createHarmonicBuffer(frequencies: [523.25, 659.25, 783.99], duration: 0.14, format: standardFormat)
         wrongBuffer = createHarmonicBuffer(frequencies: [220.0, 196.0], duration: 0.20, format: standardFormat)
@@ -69,7 +69,8 @@ final class SoundManager {
         }
 
         buffer.frameLength = AVAudioFrameCount(totalSamples)
-        guard let channelData = buffer.floatChannelData?[0] else { return nil }
+        guard let allChannels = buffer.floatChannelData else { return nil }
+        let channelCount = Int(format.channelCount)
 
         var currentSample = 0
         for freq in frequencies {
@@ -77,7 +78,9 @@ final class SoundManager {
                 if currentSample < totalSamples {
                     let envelope = sin(Double.pi * Double(i) / Double(samplesPerNote))
                     let value = Float(sin(2.0 * Double.pi * freq * Double(i) / sampleRate) * envelope * 0.35)
-                    channelData[currentSample] = value
+                    for channel in 0..<channelCount {
+                        allChannels[channel][currentSample] = value
+                    }
                     currentSample += 1
                 }
             }
